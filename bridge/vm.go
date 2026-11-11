@@ -45,7 +45,22 @@ func VMNamePrefixForScaleSet(scaleSetName string) string {
 //
 // If dockerPort > 0, the Docker CLI is installed and DOCKER_HOST is set to
 // the host daemon via TCP (host IP is auto-detected from the VM's default gateway).
-func StartupScript(jitConfig string, dockerPort int) string {
+//
+// If growDisk is true, the boot APFS container is grown into any free space
+// on the disk first. Tart grows the disk image for vm.diskSize, but images
+// whose container does not auto-grow keep their original size otherwise.
+func StartupScript(jitConfig string, dockerPort int, growDisk bool) string {
+	diskSetup := ""
+	if growDisk {
+		diskSetup = `
+# Grow the boot APFS container into the space added by vm.diskSize.
+APFS_STORE=$(diskutil info / | awk -F': *' '/APFS Physical Store/ {print $2}')
+if [ -n "$APFS_STORE" ]; then
+  sudo diskutil apfs resizeContainer "$APFS_STORE" 0 < /dev/null || echo "warning: could not grow $APFS_STORE"
+fi
+`
+	}
+
 	dockerSetup := ""
 	if dockerPort > 0 {
 		dockerSetup = fmt.Sprintf(`
@@ -70,7 +85,7 @@ set -euo pipefail
 export ACTIONS_RUNNER_INPUT_JITCONFIG="%s"
 
 source ~/.zprofile
-%s
+%s%s
 # Download the latest GitHub Actions runner to avoid version deprecation.
 DOWNLOAD_URL=$(curl -sS 'https://api.github.com/repos/actions/runner/releases/latest' \
   | grep -o '"browser_download_url": *"[^"]*actions-runner-osx-arm64-[0-9.]*\.tar\.gz"' \
@@ -81,5 +96,5 @@ rm -rf "$RUNNER_DIR" && mkdir -p "$RUNNER_DIR" && cd "$RUNNER_DIR"
 curl -sL "$DOWNLOAD_URL" | tar xz
 
 ./run.sh
-`, jitConfig, dockerSetup)
+`, jitConfig, diskSetup, dockerSetup)
 }

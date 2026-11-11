@@ -53,7 +53,7 @@ func TestVMNamePrefixForScaleSet(t *testing.T) {
 }
 
 func TestStartupScript(t *testing.T) {
-	script := StartupScript("abc123encoded", 0)
+	script := StartupScript("abc123encoded", 0, false)
 	if !strings.Contains(script, "abc123encoded") {
 		t.Error("script missing JIT config")
 	}
@@ -69,7 +69,7 @@ func TestStartupScript(t *testing.T) {
 }
 
 func TestStartupScript_DockerPort(t *testing.T) {
-	script := StartupScript("abc123encoded", 2375)
+	script := StartupScript("abc123encoded", 2375, false)
 	if !strings.Contains(script, "DOCKER_HOST_IP=$(route -n get default") {
 		t.Error("script should auto-detect host gateway")
 	}
@@ -84,5 +84,22 @@ func TestStartupScript_DockerPort(t *testing.T) {
 	}
 	if !strings.Contains(script, "cliPluginsExtraDirs") {
 		t.Error("script should register docker CLI plugins")
+	}
+}
+
+func TestStartupScript_GrowDisk(t *testing.T) {
+	script := StartupScript("abc123encoded", 0, true)
+	if !strings.Contains(script, "diskutil apfs resizeContainer") {
+		t.Error("script should grow the APFS container when growDisk is set")
+	}
+	if strings.Index(script, "resizeContainer") > strings.Index(script, "./run.sh") {
+		t.Error("the container must be grown before the runner starts")
+	}
+}
+
+func TestStartupScript_NoGrowDisk(t *testing.T) {
+	script := StartupScript("abc123encoded", 0, false)
+	if strings.Contains(script, "resizeContainer") {
+		t.Error("script must not touch the disk when growDisk is unset")
 	}
 }

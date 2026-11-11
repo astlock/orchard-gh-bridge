@@ -289,7 +289,7 @@ func (b *Bridge) createOneVM(ctx context.Context, cpu, memory uint64, labels map
 		return fmt.Errorf("generating JIT config: %w", err)
 	}
 
-	script := StartupScript(jitConfig.EncodedJITConfig, b.vmConfig.DockerPort)
+	script := StartupScript(jitConfig.EncodedJITConfig, b.vmConfig.DockerPort, b.vmConfig.DiskSize > 0)
 	vm := b.vmSpec(vmName, script, cpu, memory, labels)
 
 	if _, err := b.orchardClient.CreateVM(ctx, vm); err != nil {
