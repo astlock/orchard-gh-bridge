@@ -104,12 +104,12 @@ func TestStartupScript_NoGrowDisk(t *testing.T) {
 	}
 }
 
-func TestStartupScript_ActivatesMise(t *testing.T) {
+func TestStartupScript_SourcesZshrc(t *testing.T) {
 	script := StartupScript("abc123encoded", 0, false)
-	if !strings.Contains(script, "mise\" activate bash") {
-		t.Error("script should activate mise so the image's tools are on PATH")
+	if !strings.Contains(script, `source "$HOME/.zshrc"`) {
+		t.Error("script should read ~/.zshrc so the runner gets the interactive shell environment")
 	}
-	if strings.Index(script, "activate bash") > strings.Index(script, "./run.sh") {
-		t.Error("mise must be activated before the runner starts")
+	if strings.Index(script, ".zshrc") > strings.Index(script, "./run.sh") {
+		t.Error("~/.zshrc must be read before the runner starts")
 	}
 }

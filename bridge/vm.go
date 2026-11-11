@@ -86,11 +86,11 @@ export ACTIONS_RUNNER_INPUT_JITCONFIG="%s"
 
 source ~/.zprofile
 
-# Images such as Cirrus Labs' activate mise only in ~/.zshrc, which this bash
-# script never reads. Activate it here so the runner, and every job step it
-# starts, sees the image's mise tools on PATH as an interactive login would.
-if [ -x "$HOME/.local/bin/mise" ]; then
-  eval "$("$HOME/.local/bin/mise" activate bash)"
+# Orchard feeds this script to a non-interactive login zsh, which reads
+# ~/.zprofile but not ~/.zshrc. Images set up tools there (mise, for one), and
+# Tartelet starts its runner from an interactive Terminal shell, so read it too.
+if [ -f "$HOME/.zshrc" ]; then
+  source "$HOME/.zshrc"
 fi
 %s%s
 # Download the latest GitHub Actions runner to avoid version deprecation.
