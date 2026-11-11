@@ -169,6 +169,10 @@ The bridge tracks VM capacity with a global semaphore shared across all scale se
 
 `vm.diskSize` (GB) grows each VM's disk when it is created; Orchard runs `tart set --disk-size` on the clone before boot. Leave it unset to keep the image's own disk size. Tart can only grow a disk, so a value smaller than the image's disk makes VM creation fail. The disk is sparse on the host, so it only consumes what the guest writes, but size it so one VM per worker still fits the host's free space.
 
+### VM network isolation (Softnet)
+
+`vm.netSoftnet: true` runs each VM behind [Softnet](https://github.com/cirruslabs/softnet) (`tart run --net-softnet`). The VM can still reach the internet, but not the worker host, other VMs on the same worker or private networks, so a job cannot SSH into a neighbouring runner VM or the host. `vm.netSoftnetAllow` and `vm.netSoftnetBlock` take CIDRs on top of Softnet's default policy (for example, allow an internal registry); setting either one also enables Softnet. Every worker needs the `softnet` binary installed with the SUID bit, as described in the Softnet README. Unset keeps Tart's default shared NAT network.
+
 ### Per-host VM sizing (AutoSize)
 
 By default `vm.cpu` and `vm.memory` are fixed per scale set, so every VM in that scale set gets the same allocation regardless of the host it lands on. That wastes capacity on heterogeneous fleets (e.g. one 10-core Mac Mini next to a 12-core MacBook Pro).
