@@ -39,6 +39,7 @@ type vec struct {
 	help       string
 	kind       string
 	labelNames []string
+	buckets    []float64
 
 	mu     sync.Mutex
 	series map[string]*series
@@ -47,6 +48,7 @@ type vec struct {
 type series struct {
 	labelValues []string
 	value       float64
+	hist        *histogram
 }
 
 func (r *Registry) register(name, help, kind string, labelNames []string) *vec {
@@ -175,6 +177,10 @@ func (r *Registry) WriteText(w io.Writer) error {
 		sort.Strings(keys)
 		for _, k := range keys {
 			s := v.series[k]
+			if v.kind == "histogram" {
+				writeHistogram(&b, v, s)
+				continue
+			}
 			b.WriteString(v.name)
 			if len(v.labelNames) > 0 {
 				b.WriteByte('{')

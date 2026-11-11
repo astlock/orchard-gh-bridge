@@ -22,6 +22,7 @@ import (
 type scaleSetHandle struct {
 	bridge           *brdg.Bridge
 	listener         *listener.Listener
+	recorder         *scaleSetRecorder
 	staticMaxRunners int // > 0 means the config pinned maxRunners; don't recompute
 }
 
@@ -39,6 +40,8 @@ type Manager struct {
 	// metrics is where the manager and its cleanup loop register their
 	// metrics. May be nil.
 	metrics *metrics.Registry
+	// arc holds the ARC-compatible scale set and job metrics.
+	arc *arcMetrics
 	// eligibility reports AutoSize workers that are left out of a pool.
 	eligibility *brdg.EligibilityMonitor
 
@@ -84,6 +87,7 @@ func New(cfg *config.Config, orchardClient orchard.Client, logger *slog.Logger, 
 		state:         brdg.NewStateView(orchardClient, brdg.DefaultStateViewTTL, staleAfter),
 		staleAfter:    staleAfter,
 		metrics:       reg,
+		arc:           newARCMetrics(reg),
 		eligibility:   brdg.NewEligibilityMonitor(logger, reg),
 	}
 
@@ -316,11 +320,13 @@ func (m *Manager) runScaleSet(ctx context.Context, ssCfg config.ScaleSetConfig) 
 	}
 	defer sessionClient.Close(ctx) //nolint:errcheck
 
+	recorder := m.arc.forScaleSet(ssCfg.Name, ssCfg.GitHubConfigURL)
+	recorder.setMaxRunners(maxRunners)
 	l, err := listener.New(sessionClient, listener.Config{
 		ScaleSetID: ss.ID,
 		MaxRunners: maxRunners,
 		Logger:     logger,
-	})
+	}, listener.WithMetricsRecorder(recorder))
 	if err != nil {
 		return fmt.Errorf("creating listener for %s: %w", ssCfg.Name, err)
 	}
@@ -340,6 +346,7 @@ func (m *Manager) runScaleSet(ctx context.Context, ssCfg config.ScaleSetConfig) 
 	handle := &scaleSetHandle{
 		bridge:           b,
 		listener:         l,
+		recorder:         recorder,
 		staticMaxRunners: ssCfg.MaxRunners,
 	}
 
@@ -494,6 +501,9 @@ func (m *Manager) recomputeScaleSetShares(ctx context.Context) {
 			"autoSize", h.bridge.AutoSizeEnabled(),
 		)
 		h.listener.SetMaxRunners(share)
+		if h.recorder != nil {
+			h.recorder.setMaxRunners(share)
+		}
 	}
 }
 
