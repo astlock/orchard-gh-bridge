@@ -103,3 +103,13 @@ func TestStartupScript_NoGrowDisk(t *testing.T) {
 		t.Error("script must not touch the disk when growDisk is unset")
 	}
 }
+
+func TestStartupScript_ActivatesMise(t *testing.T) {
+	script := StartupScript("abc123encoded", 0, false)
+	if !strings.Contains(script, "mise\" activate bash") {
+		t.Error("script should activate mise so the image's tools are on PATH")
+	}
+	if strings.Index(script, "activate bash") > strings.Index(script, "./run.sh") {
+		t.Error("mise must be activated before the runner starts")
+	}
+}

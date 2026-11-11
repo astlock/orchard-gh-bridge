@@ -85,6 +85,13 @@ set -euo pipefail
 export ACTIONS_RUNNER_INPUT_JITCONFIG="%s"
 
 source ~/.zprofile
+
+# Images such as Cirrus Labs' activate mise only in ~/.zshrc, which this bash
+# script never reads. Activate it here so the runner, and every job step it
+# starts, sees the image's mise tools on PATH as an interactive login would.
+if [ -x "$HOME/.local/bin/mise" ]; then
+  eval "$("$HOME/.local/bin/mise" activate bash)"
+fi
 %s%s
 # Download the latest GitHub Actions runner to avoid version deprecation.
 DOWNLOAD_URL=$(curl -sS 'https://api.github.com/repos/actions/runner/releases/latest' \
