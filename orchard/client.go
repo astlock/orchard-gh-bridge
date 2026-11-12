@@ -26,6 +26,8 @@ type Client interface {
 	// error. A worker that is still running re-registers itself on its next
 	// connection, so this only discards the record, never the machine.
 	DeleteWorker(ctx context.Context, name string) error
+	// Exec runs a shell command in a VM through the controller (see exec.go).
+	Exec(ctx context.Context, name, command string, waitSeconds uint16) (*ExecResult, error)
 	Ping(ctx context.Context) error
 }
 

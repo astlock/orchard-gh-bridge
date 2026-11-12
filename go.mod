@@ -5,13 +5,13 @@ go 1.26.1
 require (
 	github.com/actions/scaleset v0.2.0
 	github.com/cirruslabs/orchard v0.0.0-20260323210101-23f62cd62a3d
+	github.com/coder/websocket v1.8.14
 	github.com/google/uuid v1.6.0
 	golang.org/x/sync v0.24.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/coder/websocket v1.8.14 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect

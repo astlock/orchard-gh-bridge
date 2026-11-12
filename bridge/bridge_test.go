@@ -20,6 +20,15 @@ type mockOrchardClient struct {
 	deleteWorkerErr error
 	listWorkersErr  error
 	deletedWorkers  []string
+
+	execs []execCall
+	// execFn, when set, decides the result of the n-th Exec call (1-based).
+	execFn func(n int) (*orchard.ExecResult, error)
+}
+
+type execCall struct {
+	vm      string
+	command string
 }
 
 func newMockOrchard() *mockOrchardClient {
@@ -107,6 +116,28 @@ func (m *mockOrchardClient) deletedWorkerNames() []string {
 
 func (m *mockOrchardClient) Ping(_ context.Context) error {
 	return nil
+}
+
+func (m *mockOrchardClient) Exec(_ context.Context, name, command string, _ uint16) (*orchard.ExecResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.execs = append(m.execs, execCall{vm: name, command: command})
+	if m.execFn != nil {
+		return m.execFn(len(m.execs))
+	}
+	return &orchard.ExecResult{}, nil
+}
+
+func (m *mockOrchardClient) execCalls() []execCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]execCall(nil), m.execs...)
+}
+
+func (m *mockOrchardClient) setVM(vm orchard.VM) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.vms[vm.Name] = &vm
 }
 
 func (m *mockOrchardClient) vmCount() int {

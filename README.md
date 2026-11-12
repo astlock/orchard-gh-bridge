@@ -173,6 +173,10 @@ The bridge tracks VM capacity with a global semaphore shared across all scale se
 
 `vm.netSoftnet: true` runs each VM behind [Softnet](https://github.com/cirruslabs/softnet) (`tart run --net-softnet`). The VM can still reach the internet, but not the worker host, other VMs on the same worker or private networks, so a job cannot SSH into a neighbouring runner VM or the host. `vm.netSoftnetAllow` and `vm.netSoftnetBlock` take CIDRs on top of Softnet's default policy (for example, allow an internal registry); setting either one also enables Softnet. Every worker needs the `softnet` binary installed with the SUID bit, as described in the Softnet README. Unset keeps Tart's default shared NAT network.
 
+### VM hostname from the worker
+
+`vm.hostnameFromWorker: true` names each VM after the Orchard worker it lands on, `<worker>-<vm id>` (for example `mini-07-3f2a9c1d`), so the "Machine name" line of a job log shows which host ran the job, and exports `ORCHARD_WORKER=<worker>` to the job. The worker is known only after scheduling, so the bridge sets the name through the controller's exec API (`GET /v1/vms/{name}/exec`, needs `compute:write`) once the VM is running, and the startup script waits up to a minute for it before starting the runner; without it the runner starts anyway with the image's hostname. The VM user needs passwordless `sudo` for `scutil`, as Tart's base images have.
+
 ### Per-host VM sizing (AutoSize)
 
 By default `vm.cpu` and `vm.memory` are fixed per scale set, so every VM in that scale set gets the same allocation regardless of the host it lands on. That wastes capacity on heterogeneous fleets (e.g. one 10-core Mac Mini next to a 12-core MacBook Pro).

@@ -53,7 +53,7 @@ func TestVMNamePrefixForScaleSet(t *testing.T) {
 }
 
 func TestStartupScript(t *testing.T) {
-	script := StartupScript("abc123encoded", 0, false)
+	script := StartupScript("abc123encoded", 0, false, false)
 	if !strings.Contains(script, "abc123encoded") {
 		t.Error("script missing JIT config")
 	}
@@ -69,7 +69,7 @@ func TestStartupScript(t *testing.T) {
 }
 
 func TestStartupScript_DockerPort(t *testing.T) {
-	script := StartupScript("abc123encoded", 2375, false)
+	script := StartupScript("abc123encoded", 2375, false, false)
 	if !strings.Contains(script, "DOCKER_HOST_IP=$(route -n get default") {
 		t.Error("script should auto-detect host gateway")
 	}
@@ -88,7 +88,7 @@ func TestStartupScript_DockerPort(t *testing.T) {
 }
 
 func TestStartupScript_GrowDisk(t *testing.T) {
-	script := StartupScript("abc123encoded", 0, true)
+	script := StartupScript("abc123encoded", 0, true, false)
 	if !strings.Contains(script, "diskutil apfs resizeContainer") {
 		t.Error("script should grow the APFS container when growDisk is set")
 	}
@@ -98,18 +98,39 @@ func TestStartupScript_GrowDisk(t *testing.T) {
 }
 
 func TestStartupScript_NoGrowDisk(t *testing.T) {
-	script := StartupScript("abc123encoded", 0, false)
+	script := StartupScript("abc123encoded", 0, false, false)
 	if strings.Contains(script, "resizeContainer") {
 		t.Error("script must not touch the disk when growDisk is unset")
 	}
 }
 
 func TestStartupScript_SourcesZshrc(t *testing.T) {
-	script := StartupScript("abc123encoded", 0, false)
+	script := StartupScript("abc123encoded", 0, false, false)
 	if !strings.Contains(script, `source "$HOME/.zshrc"`) {
 		t.Error("script should read ~/.zshrc so the runner gets the interactive shell environment")
 	}
 	if strings.Index(script, ".zshrc") > strings.Index(script, "./run.sh") {
 		t.Error("~/.zshrc must be read before the runner starts")
+	}
+}
+
+func TestStartupScript_WaitsForHostInfo(t *testing.T) {
+	script := StartupScript("abc123encoded", 0, false, true)
+	if !strings.Contains(script, `HOST_INFO="$HOME/.orchard-host.env"`) {
+		t.Fatal("script should wait for the host info file")
+	}
+	wait := strings.Index(script, "HOST_INFO=")
+	if wait < strings.Index(script, "tar xz") {
+		t.Error("the wait should overlap the runner download, not precede it")
+	}
+	if strings.Index(script, `cp "$HOST_INFO" .env`) > strings.Index(script, "./run.sh") {
+		t.Error("the host info must become the runner's .env before the runner starts")
+	}
+}
+
+func TestStartupScript_NoHostInfoWait(t *testing.T) {
+	script := StartupScript("abc123encoded", 0, false, false)
+	if strings.Contains(script, "HOST_INFO") {
+		t.Error("script must not wait for host info when hostnameFromWorker is unset")
 	}
 }
