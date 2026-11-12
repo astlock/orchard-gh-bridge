@@ -341,7 +341,9 @@ func (m *Manager) runScaleSet(ctx context.Context, ssCfg config.ScaleSetConfig) 
 		Capacity:      m.capacity,
 		State:         m.state,
 		Logger:        m.logger,
+		MinRunners:    ssCfg.MinRunners,
 	})
+	b.SetMaxRunners(maxRunners)
 
 	handle := &scaleSetHandle{
 		bridge:           b,
@@ -501,6 +503,7 @@ func (m *Manager) recomputeScaleSetShares(ctx context.Context) {
 			"autoSize", h.bridge.AutoSizeEnabled(),
 		)
 		h.listener.SetMaxRunners(share)
+		h.bridge.SetMaxRunners(share)
 		if h.recorder != nil {
 			h.recorder.setMaxRunners(share)
 		}

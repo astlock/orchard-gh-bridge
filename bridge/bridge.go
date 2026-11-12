@@ -47,6 +47,12 @@ type Bridge struct {
 	// runs anything.
 	placementCursor atomic.Uint64
 
+	// minRunners keeps that many runners ready beyond the assigned jobs.
+	minRunners int
+	// maxRunners is the scale set's current maxRunners (0 = not set yet). It
+	// caps assigned jobs + minRunners, as in ARC.
+	maxRunners atomic.Int64
+
 	mu        sync.Mutex
 	activeVMs map[string]string // runnerName or vmName → vmName
 }
@@ -60,6 +66,8 @@ type Config struct {
 	Capacity      *Capacity
 	State         *StateView
 	Logger        *slog.Logger
+	// MinRunners keeps that many runners ready beyond the assigned jobs.
+	MinRunners int
 }
 
 func New(cfg Config) *Bridge {
@@ -72,8 +80,28 @@ func New(cfg Config) *Bridge {
 		capacity:      cfg.Capacity,
 		state:         cfg.State,
 		logger:        cfg.Logger.With("scaleSet", cfg.ScaleSetName),
+		minRunners:    cfg.MinRunners,
 		activeVMs:     make(map[string]string),
 	}
+}
+
+// SetMaxRunners records the scale set's current maxRunners, which caps the
+// runner target once minRunners is added.
+func (b *Bridge) SetMaxRunners(n int) {
+	b.maxRunners.Store(int64(n))
+}
+
+// targetRunners is ARC's formula: assigned jobs plus minRunners ready
+// runners, capped at maxRunners.
+func (b *Bridge) targetRunners(assigned int) int {
+	target := assigned + b.minRunners
+	if max := int(b.maxRunners.Load()); max > 0 && target > max {
+		target = max
+	}
+	if target < assigned {
+		target = assigned
+	}
+	return target
 }
 
 // SetOnVMChange registers a callback invoked after a VM is created or released.
@@ -137,8 +165,12 @@ func (b *Bridge) HydrateFromOrchard(ctx context.Context) (int, error) {
 // HandleDesiredRunnerCount is called by the listener when GitHub reports the
 // desired runner count. We provision VMs only up to the real free slots on
 // label-matching Orchard workers. Anything beyond that stays in GitHub's
-// queue and gets picked up once a slot frees.
+// queue and gets picked up once a slot frees. With minRunners set, that many
+// extra runners are kept booted and registered so jobs start without a cold
+// VM boot.
 func (b *Bridge) HandleDesiredRunnerCount(ctx context.Context, count int) (int, error) {
+	count = b.targetRunners(count)
+
 	b.mu.Lock()
 	currentActive := len(b.activeVMs)
 	b.mu.Unlock()
@@ -186,7 +218,7 @@ func (b *Bridge) HandleDesiredRunnerCount(ctx context.Context, count int) (int, 
 
 	created := 0
 	for range acquired {
-		err := b.createOneVM(ctx, b.vmConfig.CPU, b.vmConfig.Memory, b.vmConfig.Labels, nil)
+		err := b.doCreateOneVM(ctx, b.vmConfig.CPU, b.vmConfig.Memory, b.vmConfig.Labels, nil)
 		if err != nil {
 			b.capacity.Release(acquired - created)
 			b.notifyChange()

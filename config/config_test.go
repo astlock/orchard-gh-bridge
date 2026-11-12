@@ -440,3 +440,28 @@ func TestLoad_MaxPendingAge(t *testing.T) {
 		}
 	}
 }
+
+func TestValidate_MinRunners(t *testing.T) {
+	base := func(min, max int) *Config {
+		return &Config{
+			Orchard: OrchardConfig{Address: "http://localhost:6120"},
+			GitHub:  GitHubConfig{Token: "t"},
+			ScaleSets: []ScaleSetConfig{{
+				Name: "s", GitHubConfigURL: "https://github.com/o", MinRunners: min, MaxRunners: max,
+				VM: VMConfig{Image: "img"},
+			}},
+		}
+	}
+	if err := base(2, 4).Validate(); err != nil {
+		t.Errorf("minRunners 2 / maxRunners 4: %v", err)
+	}
+	if err := base(2, 0).Validate(); err != nil {
+		t.Errorf("minRunners with dynamic maxRunners: %v", err)
+	}
+	if err := base(5, 4).Validate(); err == nil || !strings.Contains(err.Error(), "must not exceed maxRunners") {
+		t.Errorf("minRunners above maxRunners: err = %v", err)
+	}
+	if err := base(-1, 0).Validate(); err == nil || !strings.Contains(err.Error(), "must not be negative") {
+		t.Errorf("negative minRunners: err = %v", err)
+	}
+}

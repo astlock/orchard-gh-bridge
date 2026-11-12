@@ -164,6 +164,7 @@ The bridge tracks VM capacity with a global semaphore shared across all scale se
 - **Auto-detection (default):** On startup, the bridge queries all Orchard workers and sums their `org.cirruslabs.tart-vms` resources. This is refreshed every 60 seconds by the cleanup goroutine, so capacity adjusts as workers come and go.
 - **Static override:** Set `maxVMs` in config to a fixed number to override auto-detection.
 - **Per-scale-set limits:** Set `maxRunners` on individual scale sets to cap them independently of the global limit.
+- **Ready runners:** Set `minRunners` on a scale set to keep that many VMs booted with registered, idle runners on top of the jobs already assigned, capped at `maxRunners` (ARC's `minRunners`). A job then starts in seconds instead of waiting for a VM to clone and boot. Each ready runner holds a worker slot that other scale sets cannot use, so warm only the busiest scale set and leave the rest at 0.
 
 ### VM disk size
 
@@ -393,7 +394,7 @@ See [charts/orchard-gh-bridge/values.yaml](charts/orchard-gh-bridge/values.yaml)
 | `image` | `registry`, `repository`, `tag`, `pullPolicy` |
 | `config.orchard` | `address`, `username` |
 | `config.github` | `appID`, `installationID`, `privateKeyPath`, `token` |
-| `config.scaleSets[]` | `name`, `githubConfigURL`, `labels`, `maxRunners`, `vm.image`, `vm.cpu`, `vm.memory`, `vm.nested`, `vm.labels` |
+| `config.scaleSets[]` | `name`, `githubConfigURL`, `labels`, `maxRunners`, `minRunners`, `vm.image`, `vm.cpu`, `vm.memory`, `vm.nested`, `vm.labels` |
 | `config.maxVMs` | Global VM capacity cap (0 = auto-detect from workers) |
 | `config.maxVMAge` | VM reaping safety timeout as a Go duration, e.g. `4h` (empty = 2h default). Set above the longest consuming job's `timeout-minutes` so the job timeout governs and this stays a backstop. |
 | `config.workerStaleAfter` | How long an Orchard worker may go without a heartbeat before it stops counting as capacity (Go duration, e.g. `2m`; empty = 2m default). Raise only if your workers ping infrequently — below the ping interval it will flap. |

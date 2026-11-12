@@ -79,7 +79,11 @@ type ScaleSetConfig struct {
 	Labels          []string `yaml:"labels"`
 	RunnerGroup     string   `yaml:"runnerGroup"`
 	MaxRunners      int      `yaml:"maxRunners"`
-	VM              VMConfig `yaml:"vm"`
+	// MinRunners keeps that many runners booted and registered beyond the
+	// jobs already assigned, capped at maxRunners (ARC's minRunners), so a
+	// job does not wait for a cold VM. Each one holds a worker slot.
+	MinRunners int      `yaml:"minRunners,omitempty"`
+	VM         VMConfig `yaml:"vm"`
 }
 
 type VMConfig struct {
@@ -279,6 +283,12 @@ func (c *Config) Validate() error {
 		}
 		if ss.VM.Image == "" {
 			errs = append(errs, fmt.Sprintf("scaleSets[%d].vm.image is required", i))
+		}
+		if ss.MinRunners < 0 {
+			errs = append(errs, fmt.Sprintf("scaleSets[%d].minRunners must not be negative", i))
+		}
+		if ss.MaxRunners > 0 && ss.MinRunners > ss.MaxRunners {
+			errs = append(errs, fmt.Sprintf("scaleSets[%d].minRunners (%d) must not exceed maxRunners (%d)", i, ss.MinRunners, ss.MaxRunners))
 		}
 	}
 
