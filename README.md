@@ -171,7 +171,18 @@ The bridge tracks VM capacity with a global semaphore shared across all scale se
 
 ### VM network isolation (Softnet)
 
-`vm.netSoftnet: true` runs each VM behind [Softnet](https://github.com/cirruslabs/softnet) (`tart run --net-softnet`). The VM can still reach the internet, but not the worker host, other VMs on the same worker or private networks, so a job cannot SSH into a neighbouring runner VM or the host. `vm.netSoftnetAllow` and `vm.netSoftnetBlock` take CIDRs on top of Softnet's default policy (for example, allow an internal registry); setting either one also enables Softnet. Every worker needs the `softnet` binary installed with the SUID bit, as described in the Softnet README. Unset keeps Tart's default shared NAT network.
+`vm.netSoftnet: true` runs each VM behind [Softnet](https://github.com/cirruslabs/softnet) (`tart run --net-softnet`). The VM can still reach the internet, but not private networks such as the worker's LAN. The worker host itself stays reachable through the VM's gateway, which also serves the VM's DNS. `vm.netSoftnetAllow` and `vm.netSoftnetBlock` add Softnet rules on top of its default policy, either CIDRs or rules like `out @host`; setting either one also enables Softnet. To close the host but keep DNS:
+
+```yaml
+vm:
+  netSoftnetBlock:
+    - out @host
+  netSoftnetAllow:
+    - out proto udp @host port 53
+    - out proto tcp @host port 53
+```
+
+Blocking `out @host` without the two allow rules breaks name resolution in the VM. VMs on the same worker are already isolated from each other by Tart's default NAT network, with or without Softnet. Every worker needs the `softnet` binary installed with the SUID bit, as described in the Softnet README. Unset keeps Tart's default shared NAT network.
 
 ### Per-host VM sizing (AutoSize)
 

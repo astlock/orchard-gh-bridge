@@ -92,11 +92,13 @@ type VMConfig struct {
 	// disk, so a value below the image's size makes VM creation fail.
 	DiskSize uint64 `yaml:"diskSize,omitempty"`
 	// NetSoftnet runs each VM behind Tart's Softnet isolation: the VM can
-	// reach the internet but not the host, other VMs or private networks.
-	// Every worker needs the softnet binary installed.
+	// reach the internet but not private networks. The worker host stays
+	// reachable through the VM's gateway, which also serves DNS; block it
+	// with NetSoftnetBlock. Every worker needs the softnet binary installed.
 	NetSoftnet bool `yaml:"netSoftnet,omitempty"`
-	// NetSoftnetAllow and NetSoftnetBlock are CIDRs added on top of
-	// Softnet's default policy. Setting either one also enables Softnet.
+	// NetSoftnetAllow and NetSoftnetBlock are Softnet rules added on top of
+	// its default policy: CIDRs, or rules such as "out @host" or
+	// "out proto udp @host port 53". Setting either one also enables Softnet.
 	NetSoftnetAllow []string          `yaml:"netSoftnetAllow,omitempty"`
 	NetSoftnetBlock []string          `yaml:"netSoftnetBlock,omitempty"`
 	Labels          map[string]string `yaml:"labels"`
