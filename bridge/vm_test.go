@@ -113,3 +113,20 @@ func TestStartupScript_SourcesZshrc(t *testing.T) {
 		t.Error("~/.zshrc must be read before the runner starts")
 	}
 }
+
+func TestStartupScript_ReusesImageRunner(t *testing.T) {
+	script := StartupScript("abc123encoded", 0, false)
+	for _, want := range []string{
+		`INSTALLED=$("$RUNNER_DIR/bin/Runner.Listener" --version`,
+		`[ ! -f "$RUNNER_DIR/.runner" ]`,
+		`[ -z "$LATEST" ] || [ "$INSTALLED" = "$LATEST" ]`,
+		`curl -sL "$DOWNLOAD_URL" | tar xz`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("script missing %q", want)
+		}
+	}
+	if strings.Index(script, "Runner.Listener\" --version") > strings.Index(script, "./run.sh") {
+		t.Error("the runner choice must happen before the runner starts")
+	}
+}

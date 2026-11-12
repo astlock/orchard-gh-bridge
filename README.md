@@ -556,7 +556,7 @@ If you see `"Error: Nested virtualization is available for Mac with the M3 chip,
 
 ### Runner version deprecated
 
-The startup script auto-downloads the latest runner from GitHub's releases API. If this fails (e.g., network issues in the VM), check the VM logs:
+The startup script looks up the latest runner release from GitHub's releases API. If the image already ships an unconfigured runner in `~/actions-runner` with that version, or the lookup fails, it starts that one and skips the download (several seconds per VM); otherwise it downloads the latest runner. JIT runners do not self-update, so bake the current runner into images to keep the fast path. If the runner does not start, check the VM logs:
 
 ```bash
 orchard logs vm <vm-name>

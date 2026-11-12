@@ -93,14 +93,27 @@ if [ -f "$HOME/.zshrc" ]; then
   source "$HOME/.zshrc"
 fi
 %s%s
-# Download the latest GitHub Actions runner to avoid version deprecation.
-DOWNLOAD_URL=$(curl -sS 'https://api.github.com/repos/actions/runner/releases/latest' \
-  | grep -o '"browser_download_url": *"[^"]*actions-runner-osx-arm64-[0-9.]*\.tar\.gz"' \
-  | cut -d'"' -f4)
-
+# Use the runner baked into the image when it is the latest release (JIT
+# runners do not self-update, and GitHub stops assigning jobs to outdated
+# ones) or when the release lookup fails; otherwise download the latest.
 RUNNER_DIR="$HOME/actions-runner"
-rm -rf "$RUNNER_DIR" && mkdir -p "$RUNNER_DIR" && cd "$RUNNER_DIR"
-curl -sL "$DOWNLOAD_URL" | tar xz
+DOWNLOAD_URL=$(curl -fsS --max-time 15 'https://api.github.com/repos/actions/runner/releases/latest' \
+  | grep -o '"browser_download_url": *"[^"]*actions-runner-osx-arm64-[0-9.]*\.tar\.gz"' \
+  | cut -d'"' -f4 || true)
+LATEST=$(printf '%%s' "$DOWNLOAD_URL" | sed -nE 's/.*actions-runner-osx-arm64-([0-9.]+)\.tar\.gz$/\1/p')
+INSTALLED=""
+if [ -x "$RUNNER_DIR/bin/Runner.Listener" ] && [ ! -f "$RUNNER_DIR/.runner" ]; then
+  INSTALLED=$("$RUNNER_DIR/bin/Runner.Listener" --version 2>/dev/null || true)
+fi
+
+if [ -n "$INSTALLED" ] && { [ -z "$LATEST" ] || [ "$INSTALLED" = "$LATEST" ]; }; then
+  echo "Using the image's runner $INSTALLED"
+  cd "$RUNNER_DIR"
+else
+  echo "Downloading runner ${LATEST:-latest}"
+  rm -rf "$RUNNER_DIR" && mkdir -p "$RUNNER_DIR" && cd "$RUNNER_DIR"
+  curl -sL "$DOWNLOAD_URL" | tar xz
+fi
 
 ./run.sh
 `, jitConfig, diskSetup, dockerSetup)
