@@ -289,7 +289,7 @@ func (b *Bridge) createOneVM(ctx context.Context, cpu, memory uint64, labels map
 		return fmt.Errorf("generating JIT config: %w", err)
 	}
 
-	script := StartupScript(jitConfig.EncodedJITConfig, b.vmConfig.DockerPort, b.vmConfig.DiskSize > 0, b.vmConfig.HostnameFromWorker)
+	script := StartupScript(jitConfig.EncodedJITConfig, b.vmConfig.DockerPort, b.vmConfig.DiskSize > 0)
 	vm := b.vmSpec(vmName, script, cpu, memory, labels)
 
 	if _, err := b.orchardClient.CreateVM(ctx, vm); err != nil {
@@ -302,7 +302,7 @@ func (b *Bridge) createOneVM(ctx context.Context, cpu, memory uint64, labels map
 	b.mu.Unlock()
 
 	if b.vmConfig.HostnameFromWorker {
-		b.startHostnameLabel(vmName)
+		b.startHostnameLabel(ctx, vmName)
 	}
 
 	args := []any{"vm", vmName, "image", b.vmConfig.Image}

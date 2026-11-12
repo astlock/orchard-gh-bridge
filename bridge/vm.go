@@ -49,11 +49,7 @@ func VMNamePrefixForScaleSet(scaleSetName string) string {
 // If growDisk is true, the boot APFS container is grown into any free space
 // on the disk first. Tart grows the disk image for vm.diskSize, but images
 // whose container does not auto-grow keep their original size otherwise.
-//
-// If waitForHostInfo is true, the runner starts only after the bridge has
-// named the VM after its worker (see hostname.go), or after a minute without
-// it, and the host info file becomes the runner's .env.
-func StartupScript(jitConfig string, dockerPort int, growDisk, waitForHostInfo bool) string {
+func StartupScript(jitConfig string, dockerPort int, growDisk bool) string {
 	diskSetup := ""
 	if growDisk {
 		diskSetup = `
@@ -83,24 +79,6 @@ export DOCKER_HOST="tcp://${DOCKER_HOST_IP}:%d"
 `, dockerPort)
 	}
 
-	hostSetup := ""
-	if waitForHostInfo {
-		hostSetup = fmt.Sprintf(`
-# The bridge names this VM after its Orchard worker once it is scheduled and
-# then writes this file; wait for it so the job sees the right machine name.
-HOST_INFO="$HOME/%s"
-for _ in $(seq 1 60); do
-  [ -f "$HOST_INFO" ] && break
-  sleep 1
-done
-if [ -f "$HOST_INFO" ]; then
-  cp "$HOST_INFO" .env
-else
-  echo "warning: VM was not named after its worker"
-fi
-`, hostInfoFile)
-	}
-
 	return fmt.Sprintf(`#!/bin/bash
 set -euo pipefail
 
@@ -123,7 +101,7 @@ DOWNLOAD_URL=$(curl -sS 'https://api.github.com/repos/actions/runner/releases/la
 RUNNER_DIR="$HOME/actions-runner"
 rm -rf "$RUNNER_DIR" && mkdir -p "$RUNNER_DIR" && cd "$RUNNER_DIR"
 curl -sL "$DOWNLOAD_URL" | tar xz
-%s
+
 ./run.sh
-`, jitConfig, diskSetup, dockerSetup, hostSetup)
+`, jitConfig, diskSetup, dockerSetup)
 }

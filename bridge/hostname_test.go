@@ -31,13 +31,11 @@ func TestHostnameFor(t *testing.T) {
 }
 
 func TestHostnameCommand(t *testing.T) {
-	cmd := hostnameCommand("mini-01-3f2a9c1d", "mini-01")
+	cmd := hostnameCommand("mini-01-3f2a9c1d")
 	for _, want := range []string{
-		"sudo scutil --set HostName mini-01-3f2a9c1d",
-		"sudo scutil --set LocalHostName mini-01-3f2a9c1d",
-		"sudo scutil --set ComputerName mini-01-3f2a9c1d",
-		`printf 'ORCHARD_WORKER=mini-01\n' > "$HOME/.orchard-host.env.tmp"`,
-		`mv "$HOME/.orchard-host.env.tmp" "$HOME/.orchard-host.env"`,
+		"sudo -n scutil --set HostName mini-01-3f2a9c1d",
+		"sudo -n scutil --set LocalHostName mini-01-3f2a9c1d",
+		"sudo -n scutil --set ComputerName mini-01-3f2a9c1d",
 	} {
 		if !strings.Contains(cmd, want) {
 			t.Errorf("command missing %q:\n%s", want, cmd)
@@ -45,7 +43,7 @@ func TestHostnameCommand(t *testing.T) {
 	}
 }
 
-func shortHostnameTimings(t *testing.T) {
+func shortHostnamePoll(t *testing.T) {
 	t.Helper()
 	interval := hostnamePollInterval
 	hostnamePollInterval = 5 * time.Millisecond
@@ -56,15 +54,15 @@ func hostnameTestBridge(mock *mockOrchardClient) *Bridge {
 	return New(Config{ScaleSetName: "test", OrchardClient: mock, Capacity: NewCapacity(1), Logger: testLogger()})
 }
 
-func TestLabelHostname_WaitsForWorkerThenExecs(t *testing.T) {
-	shortHostnameTimings(t)
+func TestLabelHostname_WaitsForWorkerThenExecsOnce(t *testing.T) {
+	shortHostnamePoll(t)
 	mock := newMockOrchard()
 	mock.setVM(orchard.VM{Name: "gha-orchard-test-3f2a9c1d", Status: orchard.VMStatusCreating})
 	b := hostnameTestBridge(mock)
 
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		mock.setVM(orchard.VM{Name: "gha-orchard-test-3f2a9c1d", Status: orchard.VMStatusRunning, Worker: "mini-01"})
+		mock.setVM(orchard.VM{Name: "gha-orchard-test-3f2a9c1d", Status: orchard.VMStatusCreating, Worker: "mini-01"})
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -85,50 +83,38 @@ func TestLabelHostname_WaitsForWorkerThenExecs(t *testing.T) {
 	}
 }
 
-func TestLabelHostname_RetriesFailedExec(t *testing.T) {
-	shortHostnameTimings(t)
-	mock := newMockOrchard()
-	mock.setVM(orchard.VM{Name: "gha-orchard-test-1", Status: orchard.VMStatusRunning, Worker: "w1"})
-	mock.execFn = func(n int) (*orchard.ExecResult, error) {
-		switch n {
-		case 1:
-			return nil, errors.New("ssh not ready")
-		case 2:
-			return &orchard.ExecResult{ExitCode: 1, Output: "sudo: a password is required"}, nil
-		}
-		return &orchard.ExecResult{}, nil
-	}
-	b := hostnameTestBridge(mock)
+func TestLabelHostname_OneAttemptOnly(t *testing.T) {
+	shortHostnamePoll(t)
+	for _, tc := range []struct {
+		name    string
+		result  *orchard.ExecResult
+		err     error
+		wantErr string
+	}{
+		{"exec error", nil, errors.New("ssh not ready"), "ssh not ready"},
+		{"non-zero exit", &orchard.ExecResult{ExitCode: 1, Output: "sudo: a password is required\n"}, nil, "sudo: a password is required"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := newMockOrchard()
+			mock.setVM(orchard.VM{Name: "gha-orchard-test-1", Status: orchard.VMStatusRunning, Worker: "w1"})
+			mock.execFn = func(int) (*orchard.ExecResult, error) { return tc.result, tc.err }
+			b := hostnameTestBridge(mock)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	if err := b.labelHostname(ctx, "gha-orchard-test-1"); err != nil {
-		t.Fatalf("labelHostname: %v", err)
-	}
-	if got := len(mock.execCalls()); got != 3 {
-		t.Errorf("exec calls = %d, want 3", got)
-	}
-}
-
-func TestLabelHostname_GivesUpWithLastError(t *testing.T) {
-	shortHostnameTimings(t)
-	mock := newMockOrchard()
-	mock.setVM(orchard.VM{Name: "gha-orchard-test-1", Status: orchard.VMStatusRunning, Worker: "w1"})
-	mock.execFn = func(int) (*orchard.ExecResult, error) {
-		return &orchard.ExecResult{ExitCode: 1, Output: "sudo: a password is required\n"}, nil
-	}
-	b := hostnameTestBridge(mock)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	err := b.labelHostname(ctx, "gha-orchard-test-1")
-	if err == nil || !strings.Contains(err.Error(), "sudo: a password is required") {
-		t.Fatalf("err = %v, want the last exec failure", err)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			err := b.labelHostname(ctx, "gha-orchard-test-1")
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("err = %v, want %q", err, tc.wantErr)
+			}
+			if got := len(mock.execCalls()); got != 1 {
+				t.Errorf("exec calls = %d, want exactly 1", got)
+			}
+		})
 	}
 }
 
 func TestLabelHostname_StopsWhenVMIsGone(t *testing.T) {
-	shortHostnameTimings(t)
+	shortHostnamePoll(t)
 	for _, tc := range []struct {
 		name string
 		vm   *orchard.VM
@@ -143,14 +129,28 @@ func TestLabelHostname_StopsWhenVMIsGone(t *testing.T) {
 				mock.setVM(*tc.vm)
 			}
 			b := hostnameTestBridge(mock)
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-			if err := b.labelHostname(ctx, "gha-orchard-test-1"); err != nil {
+			if err := b.labelHostname(context.Background(), "gha-orchard-test-1"); err != nil {
 				t.Fatalf("labelHostname: %v", err)
 			}
 			if got := len(mock.execCalls()); got != 0 {
 				t.Errorf("exec calls = %d, want 0", got)
 			}
 		})
+	}
+}
+
+func TestLabelHostname_StopsWithBridgeContext(t *testing.T) {
+	shortHostnamePoll(t)
+	mock := newMockOrchard()
+	mock.setVM(orchard.VM{Name: "gha-orchard-test-1", Status: orchard.VMStatusCreating})
+	b := hostnameTestBridge(mock)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	if err := b.labelHostname(ctx, "gha-orchard-test-1"); err != nil {
+		t.Fatalf("labelHostname: %v", err)
+	}
+	if got := len(mock.execCalls()); got != 0 {
+		t.Errorf("exec calls = %d, want 0", got)
 	}
 }

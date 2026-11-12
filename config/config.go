@@ -101,10 +101,9 @@ type VMConfig struct {
 	NetSoftnetBlock []string `yaml:"netSoftnetBlock,omitempty"`
 	// HostnameFromWorker names each VM after the Orchard worker it lands on
 	// (e.g. "mini-07-3f2a9c1d"), so a job log's "Machine name" shows which
-	// host ran it, and exports ORCHARD_WORKER to the job. The bridge sets it
-	// through the controller's exec API once the VM is scheduled; the runner
-	// waits up to a minute for that before it starts. Needs passwordless
-	// sudo for the VM user, as Tart's base images have.
+	// host ran it. Best effort: once the VM is scheduled the bridge makes one
+	// attempt through the controller's exec API; the runner does not wait for
+	// it. Needs passwordless sudo for the VM user, as Tart's base images have.
 	HostnameFromWorker bool              `yaml:"hostnameFromWorker,omitempty"`
 	Labels             map[string]string `yaml:"labels"`
 	AutoSize           AutoSizeConfig    `yaml:"autoSize,omitempty"`

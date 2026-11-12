@@ -175,7 +175,7 @@ The bridge tracks VM capacity with a global semaphore shared across all scale se
 
 ### VM hostname from the worker
 
-`vm.hostnameFromWorker: true` names each VM after the Orchard worker it lands on, `<worker>-<vm id>` (for example `mini-07-3f2a9c1d`), so the "Machine name" line of a job log shows which host ran the job, and exports `ORCHARD_WORKER=<worker>` to the job. The worker is known only after scheduling, so the bridge sets the name through the controller's exec API (`GET /v1/vms/{name}/exec`, needs `compute:write`) once the VM is running, and the startup script waits up to a minute for it before starting the runner; without it the runner starts anyway with the image's hostname. The VM user needs passwordless `sudo` for `scutil`, as Tart's base images have.
+`vm.hostnameFromWorker: true` names each VM after the Orchard worker it lands on, `<worker>-<vm id>` (for example `mini-07-3f2a9c1d`), so the "Machine name" line of a job log shows which host ran the job. The worker is known only after scheduling, so once the VM has a worker the bridge makes one attempt to set the name through the controller's exec API (`GET /v1/vms/{name}/exec`, needs `compute:write`). It is best effort: the runner does not wait for it, and if it fails or comes too late the job runs under the image's hostname. The VM user needs passwordless `sudo` for `scutil`, as Tart's base images have.
 
 ### Per-host VM sizing (AutoSize)
 
